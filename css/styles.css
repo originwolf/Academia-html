@@ -1,4 +1,4 @@
-/* Custom Styles for Gym MVC App */
+/* Estilos globais para Gym Tracker MVC */
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   user-select: none;
@@ -9,6 +9,7 @@ input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
 input[type="number"] {
   -moz-appearance: textfield;
 }

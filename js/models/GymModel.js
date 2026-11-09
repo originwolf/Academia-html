@@ -1,25 +1,21 @@
 class GymModel {
   constructor() {
     this.STORAGE_KEY_EXERCISES = 'gym_exercises_dataset_en_v1';
-    this.STORAGE_KEY_SHEET = 'gym_user_active_sheet_v1';
+    this.STORAGE_KEY_SHEETS = 'gym_user_sheets_v3';
+    this.STORAGE_KEY_ACTIVE_SHEET_ID = 'gym_active_sheet_id_v3';
     
     this.exercises = [];
-    this.sheet = [];
+    this.sheets = [];
+    this.activeSheetId = null;
+
     this.muscleGroupMapping = {
-      'back': 'Dorsais',
-      'lats': 'Dorsais',
+      'back': 'Dorsais', 'lats': 'Dorsais',
       'chest': 'Peito',
-      'shoulders': 'Ombro',
-      'delts': 'Ombro',
-      'quads': 'Perna',
-      'quadriceps': 'Perna',
-      'hamstrings': 'Perna',
-      'calves': 'Perna',
-      'glutes': 'Perna',
+      'shoulders': 'Ombro', 'delts': 'Ombro',
+      'quads': 'Perna', 'quadriceps': 'Perna', 'hamstrings': 'Perna', 'calves': 'Perna', 'glutes': 'Perna',
       'biceps': 'Bíceps',
       'triceps': 'Tríceps',
-      'traps': 'Trapézio',
-      'trapezius': 'Trapézio'
+      'traps': 'Trapézio', 'trapezius': 'Trapézio'
     };
   }
 
@@ -31,19 +27,31 @@ class GymModel {
       await this.fetchGitHubExercises();
     }
 
-    const localSheet = localStorage.getItem(this.STORAGE_KEY_SHEET);
-    if (localSheet) {
-      this.sheet = JSON.parse(localSheet);
+    const localSheets = localStorage.getItem(this.STORAGE_KEY_SHEETS);
+    if (localSheets) {
+      this.sheets = JSON.parse(localSheets);
     } else {
-      // Pre-load default sheet from dataset
-      this.sheet = this.exercises.slice(0, 4).map(ex => ({
-        id: ex.id,
-        sets: 3,
-        reps: 10,
-        weight: 20,
-        completed: false
-      }));
-      this.saveSheet();
+      this.sheets = [
+        {
+          id: 'sheet_a',
+          name: 'Treino A - Peito e Tríceps',
+          items: this.exercises.slice(0, 3).map(ex => ({ id: ex.id, sets: 3, reps: 10, weight: 20, completed: false }))
+        },
+        {
+          id: 'sheet_b',
+          name: 'Treino B - Dorsais e Bíceps',
+          items: []
+        }
+      ];
+      this.saveSheets();
+    }
+
+    const activeId = localStorage.getItem(this.STORAGE_KEY_ACTIVE_SHEET_ID);
+    if (activeId && this.sheets.some(s => s.id === activeId)) {
+      this.activeSheetId = activeId;
+    } else if (this.sheets.length > 0) {
+      this.activeSheetId = this.sheets[0].id;
+      this.saveActiveSheetId();
     }
   }
 
@@ -76,11 +84,9 @@ class GymModel {
 
       this.saveExercises();
     } catch (err) {
-      console.warn('Falha ao baixar dataset original do GitHub. Utilizando backup de fallback.', err);
       this.exercises = [
         { id: '0001', name: 'Barbell Bench Press', image: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=500', muscleGroup: 'Peito' },
-        { id: '0002', name: 'Barbell Squat', image: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=500', muscleGroup: 'Perna' },
-        { id: '0003', name: 'Pull-up', image: 'https://images.unsplash.com/photo-1598971639058-fab3c3109a00?w=500', muscleGroup: 'Dorsais' }
+        { id: '0002', name: 'Barbell Squat', image: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=500', muscleGroup: 'Perna' }
       ];
       this.saveExercises();
     }
@@ -90,8 +96,47 @@ class GymModel {
     localStorage.setItem(this.STORAGE_KEY_EXERCISES, JSON.stringify(this.exercises));
   }
 
-  saveSheet() {
-    localStorage.setItem(this.STORAGE_KEY_SHEET, JSON.stringify(this.sheet));
+  saveSheets() {
+    localStorage.setItem(this.STORAGE_KEY_SHEETS, JSON.stringify(this.sheets));
+  }
+
+  saveActiveSheetId() {
+    localStorage.setItem(this.STORAGE_KEY_ACTIVE_SHEET_ID, this.activeSheetId);
+  }
+
+  createSheet(name) {
+    const newSheet = {
+      id: 'sheet_' + Date.now(),
+      name: name,
+      items: []
+    };
+    this.sheets.push(newSheet);
+    this.activeSheetId = newSheet.id;
+    this.saveSheets();
+    this.saveActiveSheetId();
+    return newSheet;
+  }
+
+  deleteSheet(sheetId) {
+    if (this.sheets.length <= 1) return false;
+    this.sheets = this.sheets.filter(s => s.id !== sheetId);
+    if (this.activeSheetId === sheetId) {
+      this.activeSheetId = this.sheets[0].id;
+      this.saveActiveSheetId();
+    }
+    this.saveSheets();
+    return true;
+  }
+
+  getActiveSheet() {
+    return this.sheets.find(s => s.id === this.activeSheetId) || this.sheets[0];
+  }
+
+  setActiveSheet(sheetId) {
+    if (this.sheets.some(s => s.id === sheetId)) {
+      this.activeSheetId = sheetId;
+      this.saveActiveSheetId();
+    }
   }
 
   addCustomExercise(name, image, muscleGroup) {
@@ -106,43 +151,48 @@ class GymModel {
     return newEx;
   }
 
-  addExerciseToSheet(exerciseId, sets, reps, weight) {
-    const existing = this.sheet.find(item => item.id === exerciseId);
+  addExerciseToSheet(sheetId, exerciseId, sets, reps) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+
+    const existing = sheet.items.find(item => item.id === exerciseId);
     if (existing) {
       existing.sets = sets;
       existing.reps = reps;
-      existing.weight = weight;
     } else {
-      this.sheet.push({
-        id: exerciseId,
-        sets,
-        reps,
-        weight,
-        completed: false
-      });
+      sheet.items.push({ id: exerciseId, sets, reps, weight: 0, completed: false });
     }
-    this.saveSheet();
+    this.saveSheets();
   }
 
-  removeExerciseFromSheet(exerciseId) {
-    this.sheet = this.sheet.filter(item => item.id !== exerciseId);
-    this.saveSheet();
-  }
-
-  updateSheetItem(exerciseId, updates) {
-    const item = this.sheet.find(i => i.id === exerciseId);
-    if (item) {
-      Object.assign(item, updates);
-      this.saveSheet();
+  removeExerciseFromSheet(sheetId, exerciseId) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (sheet) {
+      sheet.items = sheet.items.filter(item => item.id !== exerciseId);
+      this.saveSheets();
     }
   }
 
-  toggleComplete(exerciseId) {
-    const item = this.sheet.find(i => i.id === exerciseId);
-    if (item) {
-      item.completed = !item.completed;
-      this.saveSheet();
-      return item.completed;
+  updateSheetItem(sheetId, exerciseId, updates) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (sheet) {
+      const item = sheet.items.find(i => i.id === exerciseId);
+      if (item) {
+        Object.assign(item, updates);
+        this.saveSheets();
+      }
+    }
+  }
+
+  toggleComplete(sheetId, exerciseId) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (sheet) {
+      const item = sheet.items.find(i => i.id === exerciseId);
+      if (item) {
+        item.completed = !item.completed;
+        this.saveSheets();
+        return item.completed;
+      }
     }
     return false;
   }

@@ -17,7 +17,6 @@ class GymView {
 
   switchView(viewName) {
     Object.values(this.views).forEach(v => v.classList.add('hidden'));
-    
     Object.values(this.navTabs).forEach(tab => {
       tab.classList.remove('text-indigo-400', 'font-semibold');
       tab.classList.add('text-slate-400');
@@ -51,12 +50,34 @@ class GymView {
     }
   }
 
+  renderSheetsDropdowns(sheets, activeSheetId) {
+    const viewSelect = document.getElementById('select-view-sheet-target');
+    const controlSelect = document.getElementById('select-control-sheet-target');
+
+    viewSelect.innerHTML = '';
+    controlSelect.innerHTML = '';
+
+    sheets.forEach(sheet => {
+      const opt1 = document.createElement('option');
+      opt1.value = sheet.id;
+      opt1.textContent = `${sheet.name} (${sheet.items.length} ex)`;
+      if (sheet.id === activeSheetId) opt1.selected = true;
+      viewSelect.appendChild(opt1);
+
+      const opt2 = document.createElement('option');
+      opt2.value = sheet.id;
+      opt2.textContent = sheet.name;
+      if (sheet.id === activeSheetId) opt2.selected = true;
+      controlSelect.appendChild(opt2);
+    });
+  }
+
   renderActiveSheetDropdown(sheetItems, exercisesMap) {
     const select = document.getElementById('select-active-exercise');
     select.innerHTML = '';
 
-    if (sheetItems.length === 0) {
-      select.innerHTML = '<option value="">Nenhum exercício na ficha</option>';
+    if (!sheetItems || sheetItems.length === 0) {
+      select.innerHTML = '<option value="">Nenhum exercício nesta ficha</option>';
       return;
     }
 
@@ -83,7 +104,10 @@ class GymView {
     document.getElementById('exercise-detail-muscle').textContent = exercise.muscleGroup;
     document.getElementById('exercise-detail-img').src = exercise.image;
     document.getElementById('exercise-detail-sets-reps').textContent = `${sheetItem.sets}x ${sheetItem.reps}`;
-    document.getElementById('exercise-detail-weight').textContent = `${sheetItem.weight} kg`;
+    
+    const weightInput = document.getElementById('input-detail-weight');
+    weightInput.value = sheetItem.weight || 0;
+    weightInput.dataset.exerciseId = sheetItem.id;
 
     const btnComplete = document.getElementById('btn-toggle-complete');
     if (sheetItem.completed) {
@@ -95,10 +119,20 @@ class GymView {
     }
   }
 
-  renderGlobalExerciseSelect(exercises) {
+  renderGlobalExerciseSelect(exercises, selectedMuscle = 'ALL') {
     const select = document.getElementById('select-global-exercises');
     select.innerHTML = '';
-    exercises.forEach(ex => {
+
+    const filtered = selectedMuscle === 'ALL' 
+      ? exercises 
+      : exercises.filter(ex => ex.muscleGroup === selectedMuscle);
+
+    if (filtered.length === 0) {
+      select.innerHTML = '<option value="">Nenhum exercício encontrado para este grupo</option>';
+      return;
+    }
+
+    filtered.forEach(ex => {
       const opt = document.createElement('option');
       opt.value = ex.id;
       opt.textContent = `${ex.name} [${ex.muscleGroup}]`;
@@ -110,7 +144,7 @@ class GymView {
     const container = document.getElementById('list-current-sheet');
     container.innerHTML = '';
 
-    if (sheetItems.length === 0) {
+    if (!sheetItems || sheetItems.length === 0) {
       container.innerHTML = '<div class="text-xs text-slate-500 p-4 text-center">Ficha vazia. Adicione exercícios acima.</div>';
       return;
     }
@@ -125,9 +159,9 @@ class GymView {
           <h4 class="font-bold text-sm text-white truncate">${ex.name}</h4>
           <span class="text-xs text-slate-400">${ex.muscleGroup}</span>
           <div class="flex items-center gap-2 mt-1">
-            <span class="text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Reps:</span>
+            <span class="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">Reps:</span>
             <input type="number" value="${item.reps}" min="1" data-reps-id="${item.id}" class="w-14 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-center text-white focus:outline-none focus:border-cyan-500">
-            <span class="text-xs text-slate-400">| ${item.sets}x / ${item.weight}kg</span>
+            <span class="text-xs text-slate-400">| ${item.sets} séries</span>
           </div>
         </div>
         <button data-remove-id="${item.id}" class="p-2 bg-red-950/40 text-red-400 border border-red-900/50 hover:bg-red-900 hover:text-white rounded-lg transition text-xs">

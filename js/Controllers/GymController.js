@@ -21,13 +21,17 @@ class GymController {
     const exercisesMap = {};
     this.model.exercises.forEach(ex => { exercisesMap[ex.id] = ex; });
 
-    this.view.renderActiveSheetDropdown(this.model.sheet, exercisesMap);
-    this.view.renderGlobalExerciseSelect(this.model.exercises);
-    this.view.renderControlSheetList(this.model.sheet, exercisesMap);
+    const activeSheet = this.model.getActiveSheet();
+    const muscleFilter = document.getElementById('select-filter-muscle').value;
+
+    this.view.renderSheetsDropdowns(this.model.sheets, this.model.activeSheetId);
+    this.view.renderActiveSheetDropdown(activeSheet ? activeSheet.items : [], exercisesMap);
+    this.view.renderGlobalExerciseSelect(this.model.exercises, muscleFilter);
+    this.view.renderControlSheetList(activeSheet ? activeSheet.items : [], exercisesMap);
 
     const activeSelect = document.getElementById('select-active-exercise');
-    if (activeSelect.value) {
-      const selectedItem = this.model.sheet.find(i => i.id === activeSelect.value);
+    if (activeSelect && activeSelect.value && activeSheet) {
+      const selectedItem = activeSheet.items.find(i => i.id === activeSelect.value);
       this.view.renderExerciseDetail(selectedItem, exercisesMap[activeSelect.value]);
     } else {
       this.view.renderExerciseDetail(null, null);
@@ -35,7 +39,7 @@ class GymController {
   }
 
   bindEvents() {
-    // Navigation
+    // Navegação
     document.getElementById('btn-home-logo').addEventListener('click', () => this.view.switchView('home'));
     document.getElementById('tab-home').addEventListener('click', () => this.view.switchView('home'));
 
@@ -48,7 +52,47 @@ class GymController {
     document.getElementById('nav-btn-add').addEventListener('click', () => this.view.switchView('addExercise'));
     document.getElementById('tab-add').addEventListener('click', () => this.view.switchView('addExercise'));
 
-    // Timer Controls
+    // Seleção de Ficha
+    document.getElementById('select-view-sheet-target').addEventListener('change', (e) => {
+      this.model.setActiveSheet(e.target.value);
+      this.refreshAll();
+    });
+
+    document.getElementById('select-control-sheet-target').addEventListener('change', (e) => {
+      this.model.setActiveSheet(e.target.value);
+      this.refreshAll();
+    });
+
+    // Filtro por Grupo Muscular
+    document.getElementById('select-filter-muscle').addEventListener('change', (e) => {
+      this.view.renderGlobalExerciseSelect(this.model.exercises, e.target.value);
+    });
+
+    // Criar / Excluir Fichas
+    document.getElementById('btn-create-sheet').addEventListener('click', () => {
+      const nameInput = document.getElementById('input-new-sheet-name');
+      const name = nameInput.value.trim();
+      if (name) {
+        this.model.createSheet(name);
+        nameInput.value = '';
+        this.refreshAll();
+        alert(`Ficha "${name}" criada!`);
+      }
+    });
+
+    document.getElementById('btn-delete-sheet').addEventListener('click', () => {
+      const activeSheet = this.model.getActiveSheet();
+      if (confirm(`Deseja realmente excluir a ficha "${activeSheet.name}"?`)) {
+        const deleted = this.model.deleteSheet(activeSheet.id);
+        if (deleted) {
+          this.refreshAll();
+        } else {
+          alert('Não é possível excluir a única ficha restante.');
+        }
+      }
+    });
+
+    // Cronômetro
     const btnStart = document.getElementById('btn-start-timer');
     const btnStop = document.getElementById('btn-stop-timer');
 
@@ -80,43 +124,50 @@ class GymController {
       }
     });
 
-    // Dropdown selection change in View Sheet
+    // Detalhes e Ajuste de Carga na Tela de Visualização
     document.getElementById('select-active-exercise').addEventListener('change', (e) => {
       const selectedId = e.target.value;
-      const selectedItem = this.model.sheet.find(i => i.id === selectedId);
-      const exercise = this.model.exercises.find(ex => ex.id === selectedId);
-      this.view.renderExerciseDetail(selectedItem, exercise);
+      const activeSheet = this.model.getActiveSheet();
+      if (activeSheet) {
+        const selectedItem = activeSheet.items.find(i => i.id === selectedId);
+        const exercise = this.model.exercises.find(ex => ex.id === selectedId);
+        this.view.renderExerciseDetail(selectedItem, exercise);
+      }
     });
 
-    // Toggle complete exercise
+    document.getElementById('input-detail-weight').addEventListener('change', (e) => {
+      const exerciseId = e.target.dataset.exerciseId;
+      const weight = parseFloat(e.target.value) || 0;
+      if (exerciseId) {
+        this.model.updateSheetItem(this.model.activeSheetId, exerciseId, { weight });
+      }
+    });
+
     document.getElementById('btn-toggle-complete').addEventListener('click', () => {
       const selectedId = document.getElementById('select-active-exercise').value;
       if (selectedId) {
-        this.model.toggleComplete(selectedId);
+        this.model.toggleComplete(this.model.activeSheetId, selectedId);
         this.refreshAll();
       }
     });
 
-    // Add exercise to active sheet
+    // Adicionar Exercício à Ficha Selecionada (sem campo de peso)
     document.getElementById('btn-add-to-sheet').addEventListener('click', () => {
       const exId = document.getElementById('select-global-exercises').value;
       const sets = parseInt(document.getElementById('input-sets').value) || 3;
       const reps = parseInt(document.getElementById('input-reps').value) || 10;
-      const weight = parseFloat(document.getElementById('input-weight').value) || 0;
 
       if (exId) {
-        this.model.addExerciseToSheet(exId, sets, reps, weight);
+        this.model.addExerciseToSheet(this.model.activeSheetId, exId, sets, reps);
         this.refreshAll();
-        alert('Exercício adicionado à ficha com sucesso!');
       }
     });
 
-    // Delegation for Control Sheet list (Reps update & Removal)
     document.getElementById('list-current-sheet').addEventListener('change', (e) => {
       if (e.target.dataset.repsId) {
         const id = e.target.dataset.repsId;
         const reps = parseInt(e.target.value) || 1;
-        this.model.updateSheetItem(id, { reps });
+        this.model.updateSheetItem(this.model.activeSheetId, id, { reps });
         this.refreshAll();
       }
     });
@@ -124,12 +175,12 @@ class GymController {
     document.getElementById('list-current-sheet').addEventListener('click', (e) => {
       if (e.target.dataset.removeId) {
         const id = e.target.dataset.removeId;
-        this.model.removeExerciseFromSheet(id);
+        this.model.removeExerciseFromSheet(this.model.activeSheetId, id);
         this.refreshAll();
       }
     });
 
-    // Form Submit: Create custom exercise
+    // Criar Exercício Customizado
     document.getElementById('form-create-exercise').addEventListener('submit', (e) => {
       e.preventDefault();
       const name = document.getElementById('new-ex-name').value.trim();
