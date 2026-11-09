@@ -7,15 +7,16 @@ class GymController {
     this.timerSeconds = 0;
     this.isTimerRunning = false;
 
-    // Ordem sequencial das telas para navegação por swipe
     this.viewOrder = ['home', 'viewSheet', 'controlSheet', 'addExercise'];
     this.currentViewIndex = 0;
 
-    // Variáveis para detectar gesto de deslizar o dedo (Touch Swipe)
     this.touchStartX = 0;
     this.touchStartY = 0;
     this.touchEndX = 0;
     this.touchEndY = 0;
+
+    // Configuração temporária de séries na adição de exercício
+    this.tempSets = [{ reps: 10 }, { reps: 10 }, { reps: 10 }];
   }
 
   async init() {
@@ -39,6 +40,7 @@ class GymController {
     this.view.renderSheetExerciseList(activeSheet ? activeSheet.items : [], exercisesMap, this.isTimerRunning);
     this.view.renderGlobalExerciseSelect(this.model.exercises, muscleFilter);
     this.view.renderControlSheetList(activeSheet ? activeSheet.items : [], exercisesMap);
+    this.renderTempSetsBuilder();
   }
 
   changeView(viewName) {
@@ -65,22 +67,41 @@ class GymController {
     const deltaX = this.touchEndX - this.touchStartX;
     const deltaY = this.touchEndY - this.touchStartY;
 
-    // Garante que o gesto foi predominantemente horizontal (evita disparar durante rolagem vertical)
     if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
       if (deltaX < 0) {
-        // Deslizar para a esquerda -> Próxima tela
         if (this.currentViewIndex < this.viewOrder.length - 1) {
           this.currentViewIndex++;
           this.view.switchView(this.viewOrder[this.currentViewIndex]);
         }
       } else {
-        // Deslizar para a direita -> Tela anterior
         if (this.currentViewIndex > 0) {
           this.currentViewIndex--;
           this.view.switchView(this.viewOrder[this.currentViewIndex]);
         }
       }
     }
+  }
+
+  renderTempSetsBuilder() {
+    const container = document.getElementById('temp-sets-container');
+    if (!container) return;
+
+    container.innerHTML = '';
+    this.tempSets.forEach((s, idx) => {
+      const div = document.createElement('div');
+      div.className = 'flex items-center gap-2 bg-slate-950 p-1.5 px-2.5 rounded-lg border border-slate-800';
+      div.innerHTML = `
+        <span class="text-xs font-semibold text-slate-400 w-14">Série ${idx + 1}:</span>
+        <input type="number" value="${s.reps}" min="1" data-temp-set-index="${idx}" class="input-temp-set-reps w-16 bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-center text-white focus:outline-none focus:border-cyan-500">
+        <span class="text-xs text-slate-500">reps</span>
+        ${this.tempSets.length > 1 ? `
+          <button data-action-remove-temp-set="${idx}" class="ml-auto text-xs text-red-400 hover:text-red-300 font-bold px-1.5 py-0.5">
+            ×
+          </button>
+        ` : ''}
+      `;
+      container.appendChild(div);
+    });
   }
 
   bindEvents() {
@@ -108,16 +129,42 @@ class GymController {
       this.refreshAll();
     });
 
-    // Filtro por Grupo Muscular na Tela de Controle
+    // Filtro por Grupo Muscular
     document.getElementById('select-filter-muscle').addEventListener('change', (e) => {
       this.view.renderGlobalExerciseSelect(this.model.exercises, e.target.value);
     });
 
-    // Atualizar a imagem de pré-visualização em tempo real ao selecionar um exercício
+    // Atualizar imagem de pré-visualização
     document.getElementById('select-global-exercises').addEventListener('change', (e) => {
       const selectedId = e.target.value;
       const exercise = this.model.exercises.find(ex => ex.id === selectedId);
       this.view.renderControlExercisePreview(exercise);
+    });
+
+    // Gerenciador de Séries Temporárias ao Adicionar Novo Exercício na Ficha
+    document.getElementById('btn-add-temp-set').addEventListener('click', () => {
+      const lastReps = this.tempSets.length > 0 ? this.tempSets[this.tempSets.length - 1].reps : 10;
+      this.tempSets.push({ reps: lastReps });
+      this.renderTempSetsBuilder();
+    });
+
+    document.getElementById('temp-sets-container').addEventListener('change', (e) => {
+      if (e.target.dataset.tempSetIndex !== undefined) {
+        const idx = parseInt(e.target.dataset.tempSetIndex);
+        const reps = parseInt(e.target.value) || 1;
+        if (this.tempSets[idx]) this.tempSets[idx].reps = reps;
+      }
+    });
+
+    document.getElementById('temp-sets-container').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action-remove-temp-set]');
+      if (btn) {
+        const idx = parseInt(btn.dataset.actionRemoveTempSet);
+        if (this.tempSets.length > 1) {
+          this.tempSets.splice(idx, 1);
+          this.renderTempSetsBuilder();
+        }
+      }
     });
 
     // Criar / Excluir Fichas
@@ -144,7 +191,7 @@ class GymController {
       }
     });
 
-    // Cronômetro de Treino
+    // Cronômetro
     const btnStart = document.getElementById('btn-start-timer');
     const btnStop = document.getElementById('btn-stop-timer');
 
@@ -201,7 +248,7 @@ class GymController {
       }
     });
 
-    // Ações na Lista da Tela de Visualização
+    // Ações na Tela de Visualização
     document.getElementById('view-sheet-exercises-list').addEventListener('change', (e) => {
       if (!this.isTimerRunning) return;
       if (e.target.dataset.weightId) {
@@ -221,32 +268,50 @@ class GymController {
       }
     });
 
-    // Adicionar Exercício à Ficha Selecionada
+    // Adicionar Exercício à Ficha Selecionada com Séries Dinâmicas
     document.getElementById('btn-add-to-sheet').addEventListener('click', () => {
       const exId = document.getElementById('select-global-exercises').value;
-      const sets = parseInt(document.getElementById('input-sets').value) || 3;
-      const reps = parseInt(document.getElementById('input-reps').value) || 10;
-
       if (exId) {
-        this.model.addExerciseToSheet(this.model.activeSheetId, exId, sets, reps);
+        const setsCopy = JSON.parse(JSON.stringify(this.tempSets));
+        this.model.addExerciseToSheet(this.model.activeSheetId, exId, setsCopy);
         this.refreshAll();
       }
     });
 
-    // Modificar Repetições ou Remover Exercício na Tela de Controle
-    document.getElementById('list-current-sheet').addEventListener('change', (e) => {
-      if (e.target.dataset.repsId) {
-        const id = e.target.dataset.repsId;
-        const reps = parseInt(e.target.value) || 1;
-        this.model.updateSheetItem(this.model.activeSheetId, id, { reps });
-        this.refreshAll();
-      }
-    });
-
+    // Edição Dinâmica de Séries na Tela de Controle (Adicionar, Remover, Alterar Reps)
     document.getElementById('list-current-sheet').addEventListener('click', (e) => {
-      if (e.target.dataset.removeId) {
-        const id = e.target.dataset.removeId;
+      const addSetBtn = e.target.closest('[data-action-add-set]');
+      if (addSetBtn) {
+        const exId = addSetBtn.dataset.actionAddSet;
+        this.model.addSetToExercise(this.model.activeSheetId, exId);
+        this.refreshAll();
+        return;
+      }
+
+      const removeSetBtn = e.target.closest('[data-action-remove-set]');
+      if (removeSetBtn) {
+        const exId = removeSetBtn.dataset.actionRemoveSet;
+        const setIdx = parseInt(removeSetBtn.dataset.setIndex);
+        this.model.removeSetFromExercise(this.model.activeSheetId, exId, setIdx);
+        this.refreshAll();
+        return;
+      }
+
+      const removeExBtn = e.target.closest('[data-remove-id]');
+      if (removeExBtn) {
+        const id = removeExBtn.dataset.removeId;
         this.model.removeExerciseFromSheet(this.model.activeSheetId, id);
+        this.refreshAll();
+        return;
+      }
+    });
+
+    document.getElementById('list-current-sheet').addEventListener('change', (e) => {
+      if (e.target.classList.contains('input-set-reps')) {
+        const exId = e.target.dataset.exId;
+        const setIdx = parseInt(e.target.dataset.setIndex);
+        const reps = parseInt(e.target.value) || 1;
+        this.model.updateSetReps(this.model.activeSheetId, exId, setIdx, reps);
         this.refreshAll();
       }
     });

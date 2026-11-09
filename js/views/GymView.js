@@ -72,6 +72,29 @@ class GymView {
     });
   }
 
+  formatSetsSummary(setsArray) {
+    if (!Array.isArray(setsArray) || setsArray.length === 0) return '0 séries';
+
+    // Agrupa repetições idênticas (ex: 1x10, 2x6)
+    const grouped = [];
+    let currentReps = null;
+    let count = 0;
+
+    setsArray.forEach(s => {
+      const r = s.reps || 10;
+      if (r === currentReps) {
+        count++;
+      } else {
+        if (currentReps !== null) grouped.push(`${count}x${currentReps}`);
+        currentReps = r;
+        count = 1;
+      }
+    });
+    if (currentReps !== null) grouped.push(`${count}x${currentReps}`);
+
+    return grouped.join(' + ');
+  }
+
   renderSheetExerciseList(sheetItems, exercisesMap, isTimerRunning) {
     const container = document.getElementById('view-sheet-exercises-list');
     const counter = document.getElementById('completed-counter');
@@ -99,6 +122,7 @@ class GymView {
       
       const disabledAttr = !isTimerRunning ? 'disabled' : '';
       const disabledClass = !isTimerRunning ? 'opacity-50 cursor-not-allowed' : '';
+      const setsSummary = this.formatSetsSummary(item.sets);
 
       if (item.completed) {
         card.className = `bg-slate-900/60 border border-emerald-900/40 rounded-xl overflow-hidden transition-all ${disabledClass}`;
@@ -110,7 +134,7 @@ class GymView {
               </div>
               <div class="min-w-0">
                 <h4 class="font-semibold text-sm text-slate-400 line-through truncate">${ex.name}</h4>
-                <span class="text-xs text-slate-500">${ex.muscleGroup} • ${item.sets}x${item.reps} • ${item.weight || 0}kg</span>
+                <span class="text-xs text-slate-500">${ex.muscleGroup} • ${setsSummary} • ${item.weight || 0}kg</span>
               </div>
             </div>
             <button ${disabledAttr} class="text-xs text-indigo-400 font-semibold hover:underline shrink-0 ml-2 ${disabledClass}" data-action-toggle-complete="${item.id}">
@@ -120,6 +144,13 @@ class GymView {
         `;
       } else {
         card.className = `bg-slate-900 border border-slate-800 rounded-xl overflow-hidden space-y-3 p-4 shadow-lg ${disabledClass}`;
+
+        const setsListHtml = (item.sets || []).map((s, idx) => `
+          <span class="text-xs px-2 py-1 rounded bg-slate-950 border border-slate-800 text-slate-300">
+            Série ${idx + 1}: <strong class="text-indigo-400">${s.reps} reps</strong>
+          </span>
+        `).join('');
+
         card.innerHTML = `
           <div class="flex gap-3 items-start">
             <div class="w-20 h-20 bg-slate-950 rounded-lg overflow-hidden border border-slate-800 shrink-0 flex items-center justify-center">
@@ -128,8 +159,12 @@ class GymView {
             <div class="min-w-0 flex-1">
               <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-indigo-400 font-semibold border border-slate-700 inline-block mb-1">${ex.muscleGroup}</span>
               <h4 class="font-bold text-base text-white leading-tight">${ex.name}</h4>
-              <p class="text-xs text-slate-400 mt-1">${item.sets} séries × ${item.reps} repetições</p>
+              <p class="text-xs font-semibold text-cyan-400 mt-1">${setsSummary}</p>
             </div>
+          </div>
+
+          <div class="flex flex-wrap gap-1.5 pt-1">
+            ${setsListHtml}
           </div>
 
           <div class="grid grid-cols-2 gap-3 pt-1 items-center">
@@ -202,22 +237,46 @@ class GymView {
 
     sheetItems.forEach(item => {
       const ex = exercisesMap[item.id] || { name: 'Exercício Desconhecido', muscleGroup: '-' };
-      
+      const setsArray = Array.isArray(item.sets) ? item.sets : [{ reps: item.reps || 10 }];
+
       const card = document.createElement('div');
-      card.className = 'bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between gap-3';
+      card.className = 'bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-3';
+
+      const setsInputsHtml = setsArray.map((s, index) => `
+        <div class="flex items-center gap-2 bg-slate-950 p-1.5 px-2.5 rounded-lg border border-slate-800">
+          <span class="text-xs font-semibold text-slate-400 w-14">Série ${index + 1}:</span>
+          <input type="number" value="${s.reps}" min="1" data-ex-id="${item.id}" data-set-index="${index}" class="input-set-reps w-16 bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-center text-white focus:outline-none focus:border-cyan-500">
+          <span class="text-xs text-slate-500">reps</span>
+          ${setsArray.length > 1 ? `
+            <button data-action-remove-set="${item.id}" data-set-index="${index}" class="ml-auto text-xs text-red-400 hover:text-red-300 font-bold px-1.5 py-0.5">
+              ×
+            </button>
+          ` : ''}
+        </div>
+      `).join('');
+
       card.innerHTML = `
-        <div class="min-w-0 flex-1">
-          <h4 class="font-bold text-sm text-white truncate">${ex.name}</h4>
-          <span class="text-xs text-slate-400">${ex.muscleGroup}</span>
-          <div class="flex items-center gap-2 mt-1">
-            <span class="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">Reps:</span>
-            <input type="number" value="${item.reps}" min="1" data-reps-id="${item.id}" class="w-14 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-xs text-center text-white focus:outline-none focus:border-cyan-500">
-            <span class="text-xs text-slate-400">| ${item.sets} séries</span>
+        <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
+          <div class="min-w-0">
+            <h4 class="font-bold text-sm text-white truncate">${ex.name}</h4>
+            <span class="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">${ex.muscleGroup}</span>
+          </div>
+          <button data-remove-id="${item.id}" class="p-1.5 bg-red-950/40 text-red-400 border border-red-900/50 hover:bg-red-900 hover:text-white rounded-lg transition text-xs font-medium shrink-0">
+            Remover Exercício
+          </button>
+        </div>
+
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Séries & Repetições</span>
+            <button data-action-add-set="${item.id}" class="text-xs text-cyan-400 hover:text-cyan-300 font-semibold bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded transition">
+              + Adicionar Série
+            </button>
+          </div>
+          <div class="space-y-1.5">
+            ${setsInputsHtml}
           </div>
         </div>
-        <button data-remove-id="${item.id}" class="p-2 bg-red-950/40 text-red-400 border border-red-900/50 hover:bg-red-900 hover:text-white rounded-lg transition text-xs">
-          Remover
-        </button>
       `;
       container.appendChild(card);
     });

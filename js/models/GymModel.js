@@ -1,8 +1,8 @@
 class GymModel {
   constructor() {
     this.STORAGE_KEY_EXERCISES = 'gym_exercises_dataset_en_v1';
-    this.STORAGE_KEY_SHEETS = 'gym_user_sheets_v3';
-    this.STORAGE_KEY_ACTIVE_SHEET_ID = 'gym_active_sheet_id_v3';
+    this.STORAGE_KEY_SHEETS = 'gym_user_sheets_v4';
+    this.STORAGE_KEY_ACTIVE_SHEET_ID = 'gym_active_sheet_id_v4';
     
     this.exercises = [];
     this.sheets = [];
@@ -35,7 +35,12 @@ class GymModel {
         {
           id: 'sheet_a',
           name: 'Treino A - Peito e Tríceps',
-          items: this.exercises.slice(0, 3).map(ex => ({ id: ex.id, sets: 3, reps: 10, weight: 20, completed: false }))
+          items: this.exercises.slice(0, 3).map(ex => ({
+            id: ex.id,
+            sets: [{ reps: 10 }, { reps: 8 }, { reps: 6 }],
+            weight: 20,
+            completed: false
+          }))
         },
         {
           id: 'sheet_b',
@@ -151,16 +156,20 @@ class GymModel {
     return newEx;
   }
 
-  addExerciseToSheet(sheetId, exerciseId, sets, reps) {
+  addExerciseToSheet(sheetId, exerciseId, setsArray) {
     const sheet = this.sheets.find(s => s.id === sheetId);
     if (!sheet) return;
 
     const existing = sheet.items.find(item => item.id === exerciseId);
     if (existing) {
-      existing.sets = sets;
-      existing.reps = reps;
+      existing.sets = setsArray;
     } else {
-      sheet.items.push({ id: exerciseId, sets, reps, weight: 0, completed: false });
+      sheet.items.push({
+        id: exerciseId,
+        sets: setsArray,
+        weight: 0,
+        completed: false
+      });
     }
     this.saveSheets();
   }
@@ -170,6 +179,40 @@ class GymModel {
     if (sheet) {
       sheet.items = sheet.items.filter(item => item.id !== exerciseId);
       this.saveSheets();
+    }
+  }
+
+  addSetToExercise(sheetId, exerciseId, defaultReps = 10) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (sheet) {
+      const item = sheet.items.find(i => i.id === exerciseId);
+      if (item) {
+        if (!Array.isArray(item.sets)) item.sets = [];
+        item.sets.push({ reps: defaultReps });
+        this.saveSheets();
+      }
+    }
+  }
+
+  removeSetFromExercise(sheetId, exerciseId, setIndex) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (sheet) {
+      const item = sheet.items.find(i => i.id === exerciseId);
+      if (item && Array.isArray(item.sets) && item.sets.length > 1) {
+        item.sets.splice(setIndex, 1);
+        this.saveSheets();
+      }
+    }
+  }
+
+  updateSetReps(sheetId, exerciseId, setIndex, reps) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (sheet) {
+      const item = sheet.items.find(i => i.id === exerciseId);
+      if (item && Array.isArray(item.sets) && item.sets[setIndex]) {
+        item.sets[setIndex].reps = reps;
+        this.saveSheets();
+      }
     }
   }
 
