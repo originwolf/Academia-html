@@ -1,7 +1,8 @@
-/* Estilos globais para Gym Tracker MVC */
+/* Estilos globais e animações para Gym Tracker MVC */
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   user-select: none;
+  touch-action: manipulation;
 }
 
 input[type="number"]::-webkit-inner-spin-button,
@@ -12,4 +13,20 @@ input[type="number"]::-webkit-outer-spin-button {
 
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* Transição suave ao alternar views */
+section {
+  animation: fadeIn 0.25s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0.4;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

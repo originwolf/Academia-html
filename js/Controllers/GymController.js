@@ -6,6 +6,16 @@ class GymController {
     this.timerInterval = null;
     this.timerSeconds = 0;
     this.isTimerRunning = false;
+
+    // Ordem sequencial das telas para navegação por swipe
+    this.viewOrder = ['home', 'viewSheet', 'controlSheet', 'addExercise'];
+    this.currentViewIndex = 0;
+
+    // Variáveis para detectar gesto de deslizar o dedo (Touch Swipe)
+    this.touchStartX = 0;
+    this.touchStartY = 0;
+    this.touchEndX = 0;
+    this.touchEndY = 0;
   }
 
   async init() {
@@ -14,6 +24,7 @@ class GymController {
     this.view.updateStatus(`${this.model.exercises.length} Exercícios (EN)`, true);
 
     this.bindEvents();
+    this.bindSwipeEvents();
     this.refreshAll();
   }
 
@@ -30,19 +41,61 @@ class GymController {
     this.view.renderControlSheetList(activeSheet ? activeSheet.items : [], exercisesMap);
   }
 
+  changeView(viewName) {
+    this.currentViewIndex = this.viewOrder.indexOf(viewName);
+    this.view.switchView(viewName);
+  }
+
+  bindSwipeEvents() {
+    const mainElement = document.querySelector('main');
+
+    mainElement.addEventListener('touchstart', (e) => {
+      this.touchStartX = e.changedTouches[0].screenX;
+      this.touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    mainElement.addEventListener('touchend', (e) => {
+      this.touchEndX = e.changedTouches[0].screenX;
+      this.touchEndY = e.changedTouches[0].screenY;
+      this.handleSwipe();
+    }, { passive: true });
+  }
+
+  handleSwipe() {
+    const deltaX = this.touchEndX - this.touchStartX;
+    const deltaY = this.touchEndY - this.touchStartY;
+
+    // Garante que o gesto foi predominantemente horizontal (evita disparar durante rolagem vertical)
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+      if (deltaX < 0) {
+        // Deslizar para a esquerda -> Próxima tela
+        if (this.currentViewIndex < this.viewOrder.length - 1) {
+          this.currentViewIndex++;
+          this.view.switchView(this.viewOrder[this.currentViewIndex]);
+        }
+      } else {
+        // Deslizar para a direita -> Tela anterior
+        if (this.currentViewIndex > 0) {
+          this.currentViewIndex--;
+          this.view.switchView(this.viewOrder[this.currentViewIndex]);
+        }
+      }
+    }
+  }
+
   bindEvents() {
-    // Navegação
-    document.getElementById('btn-home-logo').addEventListener('click', () => this.view.switchView('home'));
-    document.getElementById('tab-home').addEventListener('click', () => this.view.switchView('home'));
+    // Navegação manual por botões/abas
+    document.getElementById('btn-home-logo').addEventListener('click', () => this.changeView('home'));
+    document.getElementById('tab-home').addEventListener('click', () => this.changeView('home'));
 
-    document.getElementById('nav-btn-view').addEventListener('click', () => this.view.switchView('viewSheet'));
-    document.getElementById('tab-view').addEventListener('click', () => this.view.switchView('viewSheet'));
+    document.getElementById('nav-btn-view').addEventListener('click', () => this.changeView('viewSheet'));
+    document.getElementById('tab-view').addEventListener('click', () => this.changeView('viewSheet'));
 
-    document.getElementById('nav-btn-control').addEventListener('click', () => this.view.switchView('controlSheet'));
-    document.getElementById('tab-control').addEventListener('click', () => this.view.switchView('controlSheet'));
+    document.getElementById('nav-btn-control').addEventListener('click', () => this.changeView('controlSheet'));
+    document.getElementById('tab-control').addEventListener('click', () => this.changeView('controlSheet'));
 
-    document.getElementById('nav-btn-add').addEventListener('click', () => this.view.switchView('addExercise'));
-    document.getElementById('tab-add').addEventListener('click', () => this.view.switchView('addExercise'));
+    document.getElementById('nav-btn-add').addEventListener('click', () => this.changeView('addExercise'));
+    document.getElementById('tab-add').addEventListener('click', () => this.changeView('addExercise'));
 
     // Seleção de Ficha
     document.getElementById('select-view-sheet-target').addEventListener('change', (e) => {
@@ -60,7 +113,7 @@ class GymController {
       this.view.renderGlobalExerciseSelect(this.model.exercises, e.target.value);
     });
 
-    // CORREÇÃO: Atualizar a imagem de pré-visualização em tempo real ao selecionar um exercício
+    // Atualizar a imagem de pré-visualização em tempo real ao selecionar um exercício
     document.getElementById('select-global-exercises').addEventListener('change', (e) => {
       const selectedId = e.target.value;
       const exercise = this.model.exercises.find(ex => ex.id === selectedId);
@@ -210,7 +263,7 @@ class GymController {
         this.refreshAll();
         e.target.reset();
         alert(`Exercício "${name}" criado com sucesso!`);
-        this.view.switchView('controlSheet');
+        this.changeView('controlSheet');
       }
     });
   }
