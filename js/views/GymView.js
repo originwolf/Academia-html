@@ -72,51 +72,84 @@ class GymView {
     });
   }
 
-  renderActiveSheetDropdown(sheetItems, exercisesMap) {
-    const select = document.getElementById('select-active-exercise');
-    select.innerHTML = '';
+  renderSheetExerciseList(sheetItems, exercisesMap, isTimerRunning) {
+    const container = document.getElementById('view-sheet-exercises-list');
+    const counter = document.getElementById('completed-counter');
+    container.innerHTML = '';
 
     if (!sheetItems || sheetItems.length === 0) {
-      select.innerHTML = '<option value="">Nenhum exercício nesta ficha</option>';
+      container.innerHTML = '<div class="text-xs text-slate-500 p-6 bg-slate-900 border border-slate-800 rounded-xl text-center">Nenhum exercício nesta ficha. Adicione exercícios na aba "Controlar".</div>';
+      counter.textContent = '0/0 Concluídos';
       return;
+    }
+
+    const completedCount = sheetItems.filter(i => i.completed).length;
+    counter.textContent = `${completedCount}/${sheetItems.length} Concluídos`;
+
+    if (!isTimerRunning) {
+      const warningBanner = document.createElement('div');
+      warningBanner.className = 'p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs text-center font-medium mb-3';
+      warningBanner.textContent = '⚠️ Inicie o treino acima para poder marcar exercícios e alterar os pesos.';
+      container.appendChild(warningBanner);
     }
 
     sheetItems.forEach(item => {
-      const ex = exercisesMap[item.id];
-      if (ex) {
-        const opt = document.createElement('option');
-        opt.value = item.id;
-        opt.textContent = `${item.completed ? '✓ ' : ''}${ex.name} (${ex.muscleGroup})`;
-        select.appendChild(opt);
+      const ex = exercisesMap[item.id] || { name: 'Exercício Desconhecido', muscleGroup: '-', image: '' };
+      const card = document.createElement('div');
+      
+      const disabledAttr = !isTimerRunning ? 'disabled' : '';
+      const disabledClass = !isTimerRunning ? 'opacity-50 cursor-not-allowed' : '';
+
+      if (item.completed) {
+        card.className = `bg-slate-900/60 border border-emerald-900/40 rounded-xl overflow-hidden transition-all ${disabledClass}`;
+        card.innerHTML = `
+          <div class="p-3 flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0">
+                ✓
+              </div>
+              <div class="min-w-0">
+                <h4 class="font-semibold text-sm text-slate-400 line-through truncate">${ex.name}</h4>
+                <span class="text-xs text-slate-500">${ex.muscleGroup} • ${item.sets}x${item.reps} • ${item.weight || 0}kg</span>
+              </div>
+            </div>
+            <button ${disabledAttr} class="text-xs text-indigo-400 font-semibold hover:underline shrink-0 ml-2 ${disabledClass}" data-action-toggle-complete="${item.id}">
+              Desmarcar
+            </button>
+          </div>
+        `;
+      } else {
+        card.className = `bg-slate-900 border border-slate-800 rounded-xl overflow-hidden space-y-3 p-4 shadow-lg ${disabledClass}`;
+        card.innerHTML = `
+          <div class="flex gap-3 items-start">
+            <div class="w-20 h-20 bg-slate-950 rounded-lg overflow-hidden border border-slate-800 shrink-0 flex items-center justify-center">
+              <img src="${ex.image}" alt="${ex.name}" class="w-full h-full object-contain">
+            </div>
+            <div class="min-w-0 flex-1">
+              <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-indigo-400 font-semibold border border-slate-700 inline-block mb-1">${ex.muscleGroup}</span>
+              <h4 class="font-bold text-base text-white leading-tight">${ex.name}</h4>
+              <p class="text-xs text-slate-400 mt-1">${item.sets} séries × ${item.reps} repetições</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-1 items-center">
+            <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-slate-400">Carga:</span>
+              <div class="flex items-center gap-1">
+                <input type="number" value="${item.weight || 0}" step="0.5" min="0" ${disabledAttr} data-weight-id="${item.id}" class="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-sm font-bold text-indigo-400 text-center focus:outline-none focus:border-indigo-500 ${disabledClass}">
+                <span class="text-xs text-slate-500 font-semibold">kg</span>
+              </div>
+            </div>
+
+            <button ${disabledAttr} data-action-toggle-complete="${item.id}" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-lg transition shadow-md flex items-center justify-center gap-1.5 ${disabledClass}">
+              <span>Concluir</span>
+            </button>
+          </div>
+        `;
       }
+
+      container.appendChild(card);
     });
-  }
-
-  renderExerciseDetail(sheetItem, exercise) {
-    const detailBox = document.getElementById('view-exercise-detail');
-    if (!sheetItem || !exercise) {
-      detailBox.classList.add('hidden');
-      return;
-    }
-
-    detailBox.classList.remove('hidden');
-    document.getElementById('exercise-detail-title').textContent = exercise.name;
-    document.getElementById('exercise-detail-muscle').textContent = exercise.muscleGroup;
-    document.getElementById('exercise-detail-img').src = exercise.image;
-    document.getElementById('exercise-detail-sets-reps').textContent = `${sheetItem.sets}x ${sheetItem.reps}`;
-    
-    const weightInput = document.getElementById('input-detail-weight');
-    weightInput.value = sheetItem.weight || 0;
-    weightInput.dataset.exerciseId = sheetItem.id;
-
-    const btnComplete = document.getElementById('btn-toggle-complete');
-    if (sheetItem.completed) {
-      btnComplete.textContent = '✓ Concluído';
-      btnComplete.className = 'w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition';
-    } else {
-      btnComplete.textContent = 'Marcar como Concluído';
-      btnComplete.className = 'w-full py-3 bg-slate-800 border border-slate-700 text-slate-300 font-semibold rounded-xl transition hover:border-slate-600';
-    }
   }
 
   renderGlobalExerciseSelect(exercises, selectedMuscle = 'ALL') {
@@ -129,6 +162,7 @@ class GymView {
 
     if (filtered.length === 0) {
       select.innerHTML = '<option value="">Nenhum exercício encontrado para este grupo</option>';
+      this.renderControlExercisePreview(null);
       return;
     }
 
@@ -138,6 +172,23 @@ class GymView {
       opt.textContent = `${ex.name} [${ex.muscleGroup}]`;
       select.appendChild(opt);
     });
+
+    const firstSelected = filtered.find(ex => ex.id === select.value);
+    this.renderControlExercisePreview(firstSelected);
+  }
+
+  renderControlExercisePreview(exercise) {
+    const container = document.getElementById('control-exercise-preview-container');
+    const img = document.getElementById('control-exercise-preview-img');
+
+    if (exercise && exercise.image) {
+      img.src = exercise.image;
+      img.alt = exercise.name;
+      container.classList.remove('hidden');
+    } else {
+      img.src = '';
+      container.classList.add('hidden');
+    }
   }
 
   renderControlSheetList(sheetItems, exercisesMap) {

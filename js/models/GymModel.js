@@ -196,4 +196,12 @@ class GymModel {
     }
     return false;
   }
+
+  resetSheetCompletions(sheetId) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (sheet) {
+      sheet.items.forEach(item => { item.completed = false; });
+      this.saveSheets();
+    }
+  }
 }

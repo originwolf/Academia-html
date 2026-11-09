@@ -25,17 +25,9 @@ class GymController {
     const muscleFilter = document.getElementById('select-filter-muscle').value;
 
     this.view.renderSheetsDropdowns(this.model.sheets, this.model.activeSheetId);
-    this.view.renderActiveSheetDropdown(activeSheet ? activeSheet.items : [], exercisesMap);
+    this.view.renderSheetExerciseList(activeSheet ? activeSheet.items : [], exercisesMap, this.isTimerRunning);
     this.view.renderGlobalExerciseSelect(this.model.exercises, muscleFilter);
     this.view.renderControlSheetList(activeSheet ? activeSheet.items : [], exercisesMap);
-
-    const activeSelect = document.getElementById('select-active-exercise');
-    if (activeSelect && activeSelect.value && activeSheet) {
-      const selectedItem = activeSheet.items.find(i => i.id === activeSelect.value);
-      this.view.renderExerciseDetail(selectedItem, exercisesMap[activeSelect.value]);
-    } else {
-      this.view.renderExerciseDetail(null, null);
-    }
   }
 
   bindEvents() {
@@ -63,9 +55,16 @@ class GymController {
       this.refreshAll();
     });
 
-    // Filtro por Grupo Muscular
+    // Filtro por Grupo Muscular na Tela de Controle
     document.getElementById('select-filter-muscle').addEventListener('change', (e) => {
       this.view.renderGlobalExerciseSelect(this.model.exercises, e.target.value);
+    });
+
+    // CORREÇÃO: Atualizar a imagem de pré-visualização em tempo real ao selecionar um exercício
+    document.getElementById('select-global-exercises').addEventListener('change', (e) => {
+      const selectedId = e.target.value;
+      const exercise = this.model.exercises.find(ex => ex.id === selectedId);
+      this.view.renderControlExercisePreview(exercise);
     });
 
     // Criar / Excluir Fichas
@@ -92,7 +91,7 @@ class GymController {
       }
     });
 
-    // Cronômetro
+    // Cronômetro de Treino
     const btnStart = document.getElementById('btn-start-timer');
     const btnStop = document.getElementById('btn-stop-timer');
 
@@ -107,6 +106,8 @@ class GymController {
           this.timerSeconds++;
           this.view.updateTimerDisplay(this.formatTime(this.timerSeconds));
         }, 1000);
+
+        this.refreshAll();
       }
     });
 
@@ -118,40 +119,56 @@ class GymController {
         btnStart.classList.remove('opacity-50');
         btnStop.disabled = true;
 
-        alert(`Treino Finalizado! Tempo total de treino: ${this.formatTime(this.timerSeconds)}`);
+        const activeSheet = this.model.getActiveSheet();
+        const exercisesMap = {};
+        this.model.exercises.forEach(ex => { exercisesMap[ex.id] = ex; });
+
+        const completedItems = activeSheet.items.filter(item => item.completed);
+        const completedNames = completedItems.map(item => {
+          const ex = exercisesMap[item.id];
+          return ex ? `• ${ex.name}` : null;
+        }).filter(Boolean);
+
+        const totalTimeStr = this.formatTime(this.timerSeconds);
+        
+        let summaryText = `🎉 Treino Finalizado!\n\nTempo Total: ${totalTimeStr}\n\n`;
+        if (completedNames.length > 0) {
+          summaryText += `Exercícios Concluídos (${completedNames.length}):\n${completedNames.join('\n')}`;
+        } else {
+          summaryText += `Nenhum exercício foi marcado como concluído.`;
+        }
+
+        alert(summaryText);
+
         this.timerSeconds = 0;
         this.view.updateTimerDisplay('00:00:00');
-      }
-    });
-
-    // Detalhes e Ajuste de Carga na Tela de Visualização
-    document.getElementById('select-active-exercise').addEventListener('change', (e) => {
-      const selectedId = e.target.value;
-      const activeSheet = this.model.getActiveSheet();
-      if (activeSheet) {
-        const selectedItem = activeSheet.items.find(i => i.id === selectedId);
-        const exercise = this.model.exercises.find(ex => ex.id === selectedId);
-        this.view.renderExerciseDetail(selectedItem, exercise);
-      }
-    });
-
-    document.getElementById('input-detail-weight').addEventListener('change', (e) => {
-      const exerciseId = e.target.dataset.exerciseId;
-      const weight = parseFloat(e.target.value) || 0;
-      if (exerciseId) {
-        this.model.updateSheetItem(this.model.activeSheetId, exerciseId, { weight });
-      }
-    });
-
-    document.getElementById('btn-toggle-complete').addEventListener('click', () => {
-      const selectedId = document.getElementById('select-active-exercise').value;
-      if (selectedId) {
-        this.model.toggleComplete(this.model.activeSheetId, selectedId);
+        this.model.resetSheetCompletions(activeSheet.id);
+        
         this.refreshAll();
       }
     });
 
-    // Adicionar Exercício à Ficha Selecionada (sem campo de peso)
+    // Ações na Lista da Tela de Visualização
+    document.getElementById('view-sheet-exercises-list').addEventListener('change', (e) => {
+      if (!this.isTimerRunning) return;
+      if (e.target.dataset.weightId) {
+        const exerciseId = e.target.dataset.weightId;
+        const weight = parseFloat(e.target.value) || 0;
+        this.model.updateSheetItem(this.model.activeSheetId, exerciseId, { weight });
+      }
+    });
+
+    document.getElementById('view-sheet-exercises-list').addEventListener('click', (e) => {
+      if (!this.isTimerRunning) return;
+      const toggleBtn = e.target.closest('[data-action-toggle-complete]');
+      if (toggleBtn) {
+        const exerciseId = toggleBtn.dataset.actionToggleComplete;
+        this.model.toggleComplete(this.model.activeSheetId, exerciseId);
+        this.refreshAll();
+      }
+    });
+
+    // Adicionar Exercício à Ficha Selecionada
     document.getElementById('btn-add-to-sheet').addEventListener('click', () => {
       const exId = document.getElementById('select-global-exercises').value;
       const sets = parseInt(document.getElementById('input-sets').value) || 3;
@@ -163,6 +180,7 @@ class GymController {
       }
     });
 
+    // Modificar Repetições ou Remover Exercício na Tela de Controle
     document.getElementById('list-current-sheet').addEventListener('change', (e) => {
       if (e.target.dataset.repsId) {
         const id = e.target.dataset.repsId;
