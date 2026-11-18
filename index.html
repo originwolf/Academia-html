@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ficha de Academia MVC</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen pb-20 antialiased selection:bg-indigo-500 selection:text-white">
@@ -33,8 +34,8 @@
       <div class="grid gap-3">
         <button id="nav-btn-view" class="w-full text-left p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-indigo-500/50 rounded-xl transition flex items-center justify-between group">
           <div class="flex items-center gap-3">
-            <div class="p-3 bg-indigo-600/10 text-indigo-400 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition">
-              👁️
+            <div class="w-11 h-11 flex items-center justify-center bg-indigo-600/10 text-indigo-400 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition text-lg">
+              <i class="fa-solid fa-eye"></i>
             </div>
             <div>
               <div class="font-semibold text-white">1 - Visualizar minha ficha</div>
@@ -46,8 +47,8 @@
 
         <button id="nav-btn-control" class="w-full text-left p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-indigo-500/50 rounded-xl transition flex items-center justify-between group">
           <div class="flex items-center gap-3">
-            <div class="p-3 bg-cyan-600/10 text-cyan-400 rounded-lg group-hover:bg-cyan-600 group-hover:text-white transition">
-              ⚙️
+            <div class="w-11 h-11 flex items-center justify-center bg-cyan-600/10 text-cyan-400 rounded-lg group-hover:bg-cyan-600 group-hover:text-white transition text-lg">
+              <i class="fa-solid fa-gear"></i>
             </div>
             <div>
               <div class="font-semibold text-white">2 - Controlar minha ficha</div>
@@ -59,8 +60,8 @@
 
         <button id="nav-btn-add" class="w-full text-left p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-indigo-500/50 rounded-xl transition flex items-center justify-between group">
           <div class="flex items-center gap-3">
-            <div class="p-3 bg-emerald-600/10 text-emerald-400 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition">
-              ➕
+            <div class="w-11 h-11 flex items-center justify-center bg-emerald-600/10 text-emerald-400 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition text-lg">
+              <i class="fa-solid fa-circle-plus"></i>
             </div>
             <div>
               <div class="font-semibold text-white">3 - Adicionar novo exercício</div>
@@ -162,7 +163,10 @@
       </div>
 
       <div class="space-y-2">
-        <h3 class="font-bold text-slate-300 text-sm">Exercícios na Ficha Selecionada</h3>
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-slate-300 text-sm">Exercícios na Ficha Selecionada</h3>
+          <span class="text-[11px] text-slate-500">Arraste ou use as setas para ordenar</span>
+        </div>
         <div id="list-current-sheet" class="space-y-2">
         </div>
       </div>
@@ -206,17 +210,17 @@
   <!-- Bottom Nav -->
   <nav class="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 z-40">
     <div class="max-w-md mx-auto grid grid-cols-4 text-center py-2 text-xs">
-      <button id="tab-home" class="text-indigo-400 font-semibold py-1 flex flex-col items-center gap-1">
-        <span>🏠</span> Início
+      <button id="tab-home" class="text-indigo-400 hover:text-indigo-300 font-semibold py-1 flex flex-col items-center gap-1 transition-colors">
+        <i class="fa-solid fa-house text-base scale-110 drop-shadow-[0_0_8px_rgba(129,140,248,0.6)] transition-transform"></i> Início
       </button>
-      <button id="tab-view" class="text-slate-400 hover:text-white py-1 flex flex-col items-center gap-1">
-        <span>👁️</span> Visualizar
+      <button id="tab-view" class="text-slate-400 hover:text-white py-1 flex flex-col items-center gap-1 transition-colors">
+        <i class="fa-solid fa-eye text-base transition-transform"></i> Visualizar
       </button>
-      <button id="tab-control" class="text-slate-400 hover:text-white py-1 flex flex-col items-center gap-1">
-        <span>⚙️</span> Controlar
+      <button id="tab-control" class="text-slate-400 hover:text-white py-1 flex flex-col items-center gap-1 transition-colors">
+        <i class="fa-solid fa-gear text-base transition-transform"></i> Controlar
       </button>
-      <button id="tab-add" class="text-slate-400 hover:text-white py-1 flex flex-col items-center gap-1">
-        <span>➕</span> Criar
+      <button id="tab-add" class="text-slate-400 hover:text-white py-1 flex flex-col items-center gap-1 transition-colors">
+        <i class="fa-solid fa-circle-plus text-base transition-transform"></i> Criar
       </button>
     </div>
   </nav>

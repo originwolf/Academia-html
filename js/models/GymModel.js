@@ -182,6 +182,46 @@ class GymModel {
     }
   }
 
+  moveExerciseInSheet(sheetId, exerciseId, direction) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (!sheet || !Array.isArray(sheet.items)) return false;
+
+    const index = sheet.items.findIndex(item => item.id === exerciseId);
+    if (index === -1) return false;
+
+    const offset = direction === 'up' ? -1 : direction === 'down' ? 1 : Number(direction);
+    const targetIndex = index + offset;
+
+    if (targetIndex < 0 || targetIndex >= sheet.items.length) return false;
+
+    const [movedItem] = sheet.items.splice(index, 1);
+    sheet.items.splice(targetIndex, 0, movedItem);
+
+    this.saveSheets();
+    return true;
+  }
+
+  reorderExerciseInSheet(sheetId, fromIndex, toIndex) {
+    const sheet = this.sheets.find(s => s.id === sheetId);
+    if (!sheet || !Array.isArray(sheet.items)) return false;
+
+    if (
+      fromIndex < 0 ||
+      fromIndex >= sheet.items.length ||
+      toIndex < 0 ||
+      toIndex >= sheet.items.length ||
+      fromIndex === toIndex
+    ) {
+      return false;
+    }
+
+    const [movedItem] = sheet.items.splice(fromIndex, 1);
+    sheet.items.splice(toIndex, 0, movedItem);
+
+    this.saveSheets();
+    return true;
+  }
+
   addSetToExercise(sheetId, exerciseId, defaultReps = 10) {
     const sheet = this.sheets.find(s => s.id === sheetId);
     if (sheet) {

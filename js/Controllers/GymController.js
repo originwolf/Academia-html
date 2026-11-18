@@ -17,6 +17,10 @@ class GymController {
 
     // Configuração temporária de séries na adição de exercício
     this.tempSets = [{ reps: 10 }, { reps: 10 }, { reps: 10 }];
+
+    // Controle de Drag & Drop dos cards de exercícios
+    this.draggedExerciseIndex = null;
+    this.touchDragElement = null;
   }
 
   async init() {
@@ -26,6 +30,7 @@ class GymController {
 
     this.bindEvents();
     this.bindSwipeEvents();
+    this.bindDragAndDropEvents();
     this.refreshAll();
   }
 
@@ -52,11 +57,16 @@ class GymController {
     const mainElement = document.querySelector('main');
 
     mainElement.addEventListener('touchstart', (e) => {
+      // Não dispara swipe de troca de tela se o toque começou dentro da lista ordenável
+      if (e.target.closest('#list-current-sheet')) return;
+
       this.touchStartX = e.changedTouches[0].screenX;
       this.touchStartY = e.changedTouches[0].screenY;
     }, { passive: true });
 
     mainElement.addEventListener('touchend', (e) => {
+      if (e.target.closest('#list-current-sheet')) return;
+
       this.touchEndX = e.changedTouches[0].screenX;
       this.touchEndY = e.changedTouches[0].screenY;
       this.handleSwipe();
@@ -80,6 +90,110 @@ class GymController {
         }
       }
     }
+  }
+
+  bindDragAndDropEvents() {
+    const listContainer = document.getElementById('list-current-sheet');
+
+    // --- Desktop HTML5 Drag & Drop ---
+    listContainer.addEventListener('dragstart', (e) => {
+      const card = e.target.closest('.control-exercise-card');
+      if (!card) return;
+
+      this.draggedExerciseIndex = parseInt(card.dataset.index);
+      card.classList.add('opacity-50', 'border-cyan-500');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    listContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const card = e.target.closest('.control-exercise-card');
+      if (card && parseInt(card.dataset.index) !== this.draggedExerciseIndex) {
+        card.classList.add('border-cyan-400', 'bg-slate-800/80');
+      }
+    });
+
+    listContainer.addEventListener('dragleave', (e) => {
+      const card = e.target.closest('.control-exercise-card');
+      if (card) {
+        card.classList.remove('border-cyan-400', 'bg-slate-800/80');
+      }
+    });
+
+    listContainer.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const targetCard = e.target.closest('.control-exercise-card');
+      if (!targetCard || this.draggedExerciseIndex === null) return;
+
+      const targetIndex = parseInt(targetCard.dataset.index);
+      if (this.draggedExerciseIndex !== targetIndex) {
+        this.model.reorderExerciseInSheet(this.model.activeSheetId, this.draggedExerciseIndex, targetIndex);
+        this.refreshAll();
+      }
+    });
+
+    listContainer.addEventListener('dragend', () => {
+      this.draggedExerciseIndex = null;
+      document.querySelectorAll('.control-exercise-card').forEach(c => {
+        c.classList.remove('opacity-50', 'border-cyan-500', 'border-cyan-400', 'bg-slate-800/80');
+      });
+    });
+
+    // --- Mobile Touch Drag & Drop ---
+    listContainer.addEventListener('touchstart', (e) => {
+      // Ignora toque se o usuário clicou em botões ou inputs internos
+      if (e.target.closest('button') || e.target.closest('input')) return;
+
+      const card = e.target.closest('.control-exercise-card');
+      if (!card) return;
+
+      this.touchDragElement = card;
+      this.draggedExerciseIndex = parseInt(card.dataset.index);
+      card.classList.add('opacity-60', 'border-cyan-500', 'scale-[1.01]');
+    }, { passive: true });
+
+    listContainer.addEventListener('touchmove', (e) => {
+      if (!this.touchDragElement) return;
+      e.preventDefault(); // Evita rolar a página enquanto arrasta o card
+
+      const touch = e.touches[0];
+      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetCard = elementBelow ? elementBelow.closest('.control-exercise-card') : null;
+
+      document.querySelectorAll('.control-exercise-card').forEach(c => {
+        if (c !== this.touchDragElement) {
+          c.classList.remove('border-cyan-400', 'bg-slate-800/80');
+        }
+      });
+
+      if (targetCard && targetCard !== this.touchDragElement) {
+        targetCard.classList.add('border-cyan-400', 'bg-slate-800/80');
+      }
+    }, { passive: false });
+
+    listContainer.addEventListener('touchend', (e) => {
+      if (!this.touchDragElement) return;
+
+      const touch = e.changedTouches[0];
+      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetCard = elementBelow ? elementBelow.closest('.control-exercise-card') : null;
+
+      this.touchDragElement.classList.remove('opacity-60', 'border-cyan-500', 'scale-[1.01]');
+      document.querySelectorAll('.control-exercise-card').forEach(c => {
+        c.classList.remove('border-cyan-400', 'bg-slate-800/80');
+      });
+
+      if (targetCard && this.draggedExerciseIndex !== null) {
+        const targetIndex = parseInt(targetCard.dataset.index);
+        if (this.draggedExerciseIndex !== targetIndex) {
+          this.model.reorderExerciseInSheet(this.model.activeSheetId, this.draggedExerciseIndex, targetIndex);
+          this.refreshAll();
+        }
+      }
+
+      this.touchDragElement = null;
+      this.draggedExerciseIndex = null;
+    });
   }
 
   renderTempSetsBuilder() {
@@ -278,8 +392,18 @@ class GymController {
       }
     });
 
-    // Edição Dinâmica de Séries na Tela de Controle (Adicionar, Remover, Alterar Reps)
+    // Edição Dinâmica e Reordenação na Tela de Controle
     document.getElementById('list-current-sheet').addEventListener('click', (e) => {
+      // Botões de seta (Subir / Descer)
+      const moveBtn = e.target.closest('[data-action-move]');
+      if (moveBtn) {
+        const direction = moveBtn.dataset.actionMove;
+        const exId = moveBtn.dataset.moveId;
+        const moved = this.model.moveExerciseInSheet(this.model.activeSheetId, exId, direction);
+        if (moved) this.refreshAll();
+        return;
+      }
+
       const addSetBtn = e.target.closest('[data-action-add-set]');
       if (addSetBtn) {
         const exId = addSetBtn.dataset.actionAddSet;

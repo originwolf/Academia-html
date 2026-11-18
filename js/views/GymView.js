@@ -17,23 +17,43 @@ class GymView {
 
   switchView(viewName) {
     Object.values(this.views).forEach(v => v.classList.add('hidden'));
+
+    // Reseta todas as abas para o estado inativo (com hover branco)
     Object.values(this.navTabs).forEach(tab => {
-      tab.classList.remove('text-indigo-400', 'font-semibold');
-      tab.classList.add('text-slate-400');
+      tab.classList.remove('text-indigo-400', 'hover:text-indigo-300', 'font-semibold');
+      tab.classList.add('text-slate-400', 'hover:text-white');
+
+      const icon = tab.querySelector('i');
+      if (icon) {
+        icon.classList.remove('scale-110', 'drop-shadow-[0_0_8px_rgba(129,140,248,0.6)]');
+      }
     });
+
+    // Ativa a view e aplica o destaque índigo + hover índigo claro na aba selecionada
+    let activeTab = null;
 
     if (viewName === 'home') {
       this.views.home.classList.remove('hidden');
-      this.navTabs.home.classList.add('text-indigo-400', 'font-semibold');
+      activeTab = this.navTabs.home;
     } else if (viewName === 'viewSheet') {
       this.views.viewSheet.classList.remove('hidden');
-      this.navTabs.view.classList.add('text-indigo-400', 'font-semibold');
+      activeTab = this.navTabs.view;
     } else if (viewName === 'controlSheet') {
       this.views.controlSheet.classList.remove('hidden');
-      this.navTabs.control.classList.add('text-indigo-400', 'font-semibold');
+      activeTab = this.navTabs.control;
     } else if (viewName === 'addExercise') {
       this.views.addExercise.classList.remove('hidden');
-      this.navTabs.add.classList.add('text-indigo-400', 'font-semibold');
+      activeTab = this.navTabs.add;
+    }
+
+    if (activeTab) {
+      activeTab.classList.remove('text-slate-400', 'hover:text-white');
+      activeTab.classList.add('text-indigo-400', 'hover:text-indigo-300', 'font-semibold');
+
+      const activeIcon = activeTab.querySelector('i');
+      if (activeIcon) {
+        activeIcon.classList.add('scale-110', 'drop-shadow-[0_0_8px_rgba(129,140,248,0.6)]');
+      }
     }
   }
 
@@ -75,7 +95,6 @@ class GymView {
   formatSetsSummary(setsArray) {
     if (!Array.isArray(setsArray) || setsArray.length === 0) return '0 séries';
 
-    // Agrupa repetições idênticas (ex: 1x10, 2x6)
     const grouped = [];
     let currentReps = null;
     let count = 0;
@@ -235,12 +254,18 @@ class GymView {
       return;
     }
 
-    sheetItems.forEach(item => {
+    sheetItems.forEach((item, idx) => {
       const ex = exercisesMap[item.id] || { name: 'Exercício Desconhecido', muscleGroup: '-' };
       const setsArray = Array.isArray(item.sets) ? item.sets : [{ reps: item.reps || 10 }];
 
+      const isFirst = idx === 0;
+      const isLast = idx === sheetItems.length - 1;
+
       const card = document.createElement('div');
-      card.className = 'bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-3';
+      card.className = 'control-exercise-card bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-3 transition-all cursor-grab active:cursor-grabbing';
+      card.setAttribute('draggable', 'true');
+      card.dataset.exerciseId = item.id;
+      card.dataset.index = idx;
 
       const setsInputsHtml = setsArray.map((s, index) => `
         <div class="flex items-center gap-2 bg-slate-950 p-1.5 px-2.5 rounded-lg border border-slate-800">
@@ -256,14 +281,29 @@ class GymView {
       `).join('');
 
       card.innerHTML = `
-        <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
-          <div class="min-w-0">
-            <h4 class="font-bold text-sm text-white truncate">${ex.name}</h4>
-            <span class="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">${ex.muscleGroup}</span>
+        <div class="flex items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-mono text-slate-500 font-bold">#${idx + 1}</span>
+              <h4 class="font-bold text-sm text-white truncate">${ex.name}</h4>
+            </div>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">${ex.muscleGroup}</span>
+              <button data-remove-id="${item.id}" class="text-xs text-red-400 hover:text-red-300 underline">
+                Remover
+              </button>
+            </div>
           </div>
-          <button data-remove-id="${item.id}" class="p-1.5 bg-red-950/40 text-red-400 border border-red-900/50 hover:bg-red-900 hover:text-white rounded-lg transition text-xs font-medium shrink-0">
-            Remover Exercício
-          </button>
+
+          <!-- Setas de reordenação no canto superior direito -->
+          <div class="flex flex-col gap-1 shrink-0">
+            <button type="button" data-action-move="up" data-move-id="${item.id}" ${isFirst ? 'disabled' : ''} class="w-7 h-6 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition ${isFirst ? 'opacity-30 cursor-not-allowed' : ''}" title="Subir posição">
+              <i class="fa-solid fa-caret-up"></i>
+            </button>
+            <button type="button" data-action-move="down" data-move-id="${item.id}" ${isLast ? 'disabled' : ''} class="w-7 h-6 flex items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition ${isLast ? 'opacity-30 cursor-not-allowed' : ''}" title="Descer posição">
+              <i class="fa-solid fa-caret-down"></i>
+            </button>
+          </div>
         </div>
 
         <div class="space-y-1.5">
