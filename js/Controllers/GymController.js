@@ -21,6 +21,10 @@ class GymController {
     // Controle de Drag & Drop dos cards de exercícios
     this.draggedExerciseIndex = null;
     this.touchDragElement = null;
+    this.longPressTimer = null;
+    this.isTouchDragging = false;
+    this.dragTouchStartX = 0;
+    this.dragTouchStartY = 0;
   }
 
   async init() {
@@ -57,15 +61,14 @@ class GymController {
     const mainElement = document.querySelector('main');
 
     mainElement.addEventListener('touchstart', (e) => {
-      // Não dispara swipe de troca de tela se o toque começou dentro da lista ordenável
-      if (e.target.closest('#list-current-sheet')) return;
+      if (this.isTouchDragging) return;
 
       this.touchStartX = e.changedTouches[0].screenX;
       this.touchStartY = e.changedTouches[0].screenY;
     }, { passive: true });
 
     mainElement.addEventListener('touchend', (e) => {
-      if (e.target.closest('#list-current-sheet')) return;
+      if (this.isTouchDragging) return;
 
       this.touchEndX = e.changedTouches[0].screenX;
       this.touchEndY = e.changedTouches[0].screenY;
@@ -89,6 +92,13 @@ class GymController {
           this.view.switchView(this.viewOrder[this.currentViewIndex]);
         }
       }
+    }
+  }
+
+  cancelLongPress() {
+    if (this.longPressTimer) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
     }
   }
 
@@ -139,24 +149,50 @@ class GymController {
       });
     });
 
-    // --- Mobile Touch Drag & Drop ---
+    // --- Mobile Touch Drag & Drop (Requer manter pressionado por 1 segundo) ---
     listContainer.addEventListener('touchstart', (e) => {
-      // Ignora toque se o usuário clicou em botões ou inputs internos
       if (e.target.closest('button') || e.target.closest('input')) return;
 
       const card = e.target.closest('.control-exercise-card');
       if (!card) return;
 
+      this.cancelLongPress();
+      this.isTouchDragging = false;
       this.touchDragElement = card;
-      this.draggedExerciseIndex = parseInt(card.dataset.index);
-      card.classList.add('opacity-60', 'border-cyan-500', 'scale-[1.01]');
+      this.dragTouchStartX = e.touches[0].clientX;
+      this.dragTouchStartY = e.touches[0].clientY;
+
+      this.longPressTimer = setTimeout(() => {
+        this.isTouchDragging = true;
+        this.draggedExerciseIndex = parseInt(card.dataset.index);
+        card.classList.add('opacity-70', 'border-cyan-500', 'scale-[1.02]', 'shadow-xl', 'ring-2', 'ring-cyan-500/40');
+
+        if (navigator.vibrate) {
+          navigator.vibrate(40);
+        }
+      }, 1000);
     }, { passive: true });
 
     listContainer.addEventListener('touchmove', (e) => {
       if (!this.touchDragElement) return;
-      e.preventDefault(); // Evita rolar a página enquanto arrasta o card
 
       const touch = e.touches[0];
+
+      // Se ainda não completou 1 segundo e o dedo se moveu (rolagem/swipe), cancela o drag
+      if (!this.isTouchDragging) {
+        const moveX = Math.abs(touch.clientX - this.dragTouchStartX);
+        const moveY = Math.abs(touch.clientY - this.dragTouchStartY);
+
+        if (moveX > 10 || moveY > 10) {
+          this.cancelLongPress();
+          this.touchDragElement = null;
+        }
+        return;
+      }
+
+      // Modo arraste ativo: bloqueia rolagem da tela e destaca o alvo
+      e.preventDefault();
+
       const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
       const targetCard = elementBelow ? elementBelow.closest('.control-exercise-card') : null;
 
@@ -171,29 +207,39 @@ class GymController {
       }
     }, { passive: false });
 
-    listContainer.addEventListener('touchend', (e) => {
+    const finishTouchDrag = (e) => {
+      this.cancelLongPress();
+
       if (!this.touchDragElement) return;
 
-      const touch = e.changedTouches[0];
-      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-      const targetCard = elementBelow ? elementBelow.closest('.control-exercise-card') : null;
+      if (this.isTouchDragging) {
+        const touch = e.changedTouches[0];
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetCard = elementBelow ? elementBelow.closest('.control-exercise-card') : null;
 
-      this.touchDragElement.classList.remove('opacity-60', 'border-cyan-500', 'scale-[1.01]');
-      document.querySelectorAll('.control-exercise-card').forEach(c => {
-        c.classList.remove('border-cyan-400', 'bg-slate-800/80');
-      });
+        this.touchDragElement.classList.remove('opacity-70', 'border-cyan-500', 'scale-[1.02]', 'shadow-xl', 'ring-2', 'ring-cyan-500/40');
+        document.querySelectorAll('.control-exercise-card').forEach(c => {
+          c.classList.remove('border-cyan-400', 'bg-slate-800/80');
+        });
 
-      if (targetCard && this.draggedExerciseIndex !== null) {
-        const targetIndex = parseInt(targetCard.dataset.index);
-        if (this.draggedExerciseIndex !== targetIndex) {
-          this.model.reorderExerciseInSheet(this.model.activeSheetId, this.draggedExerciseIndex, targetIndex);
-          this.refreshAll();
+        if (targetCard && this.draggedExerciseIndex !== null) {
+          const targetIndex = parseInt(targetCard.dataset.index);
+          if (this.draggedExerciseIndex !== targetIndex) {
+            this.model.reorderExerciseInSheet(this.model.activeSheetId, this.draggedExerciseIndex, targetIndex);
+            this.refreshAll();
+          }
         }
       }
 
       this.touchDragElement = null;
       this.draggedExerciseIndex = null;
-    });
+      setTimeout(() => {
+        this.isTouchDragging = false;
+      }, 50);
+    };
+
+    listContainer.addEventListener('touchend', finishTouchDrag);
+    listContainer.addEventListener('touchcancel', finishTouchDrag);
   }
 
   renderTempSetsBuilder() {
